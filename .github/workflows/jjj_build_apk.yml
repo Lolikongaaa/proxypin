@@ -16,6 +16,12 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space (runner has only ~14GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk 2>/dev/null || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h /
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -54,15 +60,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jjj-connector-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
 
-      # 诊断期：无论成败都把日志推回仓库（走 git 通道，不受 API 限流影响）；
-      # 全程 echo 状态 + 清洗潜在 token，避免 push protection 静默拦截
       - name: Dump logs to repo (diagnostic)
         if: always()
         shell: bash
         run: |
           set +e
+          echo "=== disk after build ==="; df -h /
           mkdir -p jjj_logs
           RUN="${GITHUB_RUN_ID}"
           cp build_output.log "jjj_logs/build_${RUN}.log" 2>/dev/null
