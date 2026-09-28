@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:proxypin/network/bin/configuration.dart';
 import 'package:proxypin/network/components/hosts.dart';
 import 'package:proxypin/network/components/interceptor.dart';
+import 'package:proxypin/network/components/jjj_token_interceptor.dart';
 import 'package:proxypin/network/components/network_condition.dart';
 import 'package:proxypin/network/components/report_server_interceptor.dart';
 import 'package:proxypin/network/components/request_block.dart';
@@ -90,7 +91,8 @@ class ProxyServer {
       RequestBlockInterceptor(),
       RequestBreakpointInterceptor.instance, // Register the interceptor
       NetworkConditionInterceptor.instance,
-      ReportServerInterceptor()
+      ReportServerInterceptor(),
+      JjjTokenInterceptor.instance // [JJJ] 皎皎角凭据提取
     ];
 
     interceptors.sort((a, b) => a.priority.compareTo(b.priority));
