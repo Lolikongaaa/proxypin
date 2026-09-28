@@ -45,6 +45,7 @@ import 'package:proxypin/ui/mobile/setting/request_rewrite.dart';
 import 'package:proxypin/ui/mobile/setting/request_crypto.dart';
 import 'package:proxypin/ui/mobile/setting/script.dart';
 import 'package:proxypin/ui/mobile/setting/ssl.dart';
+import 'package:proxypin/ui/mobile/setting/jjj_credentials.dart';
 import 'package:proxypin/ui/mobile/widgets/about.dart';
 import 'package:proxypin/utils/listenable_list.dart';
 
@@ -123,6 +124,10 @@ class DrawerWidget extends StatelessWidget {
                 title: Text(localizations.httpsProxy),
                 leading: proxyServer.enableSsl ? Icon(Icons.lock_open) : Icon(Icons.https),
                 onTap: () => navigator(context, MobileSslWidget(proxyServer: proxyServer))),
+            ListTile(
+                title: const Text('皎皎角凭据'),
+                leading: const Icon(Icons.vpn_key),
+                onTap: () => navigator(context, JjjCredentialsPage(proxyServer: proxyServer))),
             const Divider(thickness: 0.3, height: 0),
             ListTile(
                 title: Text(localizations.filter),

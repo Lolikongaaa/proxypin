@@ -161,14 +161,32 @@ class JjjTokenInterceptor extends Interceptor {
   }
 
   /// 凭据存储文件（与配置文件同目录）
-  Future<File> _storeFile() async {
+  static Future<File> storeFile() async {
     var configFile = await FileRead.homeDir();
     return File("${configFile.parent.path}${Platform.pathSeparator}jjj_token.json");
   }
 
+  /// 读取已落盘的凭据（跨进程安全，供 UI 层使用）
+  static Future<JjjCredential> readStoredCredential() async {
+    try {
+      var file = await storeFile();
+      if (!await file.exists()) {
+        return JjjCredential();
+      }
+      var content = await file.readAsString();
+      if (content.isEmpty) {
+        return JjjCredential();
+      }
+      return JjjCredential.fromJson(jsonDecode(content));
+    } catch (e) {
+      logger.e('[JJJ] read credential failed', error: e);
+      return JjjCredential();
+    }
+  }
+
   Future<void> _save() async {
     try {
-      var file = await _storeFile();
+      var file = await storeFile();
       if (!await file.exists()) {
         file = await file.create(recursive: true);
       }
@@ -179,18 +197,6 @@ class JjjTokenInterceptor extends Interceptor {
   }
 
   Future<void> _load() async {
-    try {
-      var file = await _storeFile();
-      if (!await file.exists()) {
-        return;
-      }
-      var content = await file.readAsString();
-      if (content.isEmpty) {
-        return;
-      }
-      _latest = JjjCredential.fromJson(jsonDecode(content));
-    } catch (e) {
-      logger.e('[JJJ] load credential failed', error: e);
-    }
+    _latest = await readStoredCredential();
   }
 }
