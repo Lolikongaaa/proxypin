@@ -64,13 +64,17 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
 
       # 成功时把 APK 提交回仓库：下载走 git/raw 通道，不受 API 认证/限流限制
+      # 文件名带 run id + commit 短哈希，保证每轮唯一，避免 CDN 缓存吐旧包
       - name: Commit APK to repo
         if: success()
         shell: bash
         run: |
           set +e
           mkdir -p jjj_apk
-          cp build/app/outputs/flutter-apk/*.apk jjj_apk/ 2>/dev/null
+          rm -f jjj_apk/*.apk
+          APK_NAME="jjj-connector-${GITHUB_RUN_ID}-${GITHUB_SHA:0:7}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "jjj_apk/${APK_NAME}" 2>/dev/null || cp build/app/outputs/flutter-apk/*.apk "jjj_apk/${APK_NAME}"
+          echo "APK_NAME=${APK_NAME}" | tee apk_name.txt
           echo "=== apk files ==="; ls -la jjj_apk
           git config user.name "jjj-bot"
           git config user.email "jjj-bot@users.noreply.github.com"
