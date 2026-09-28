@@ -53,6 +53,19 @@ jobs:
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradle/wrapper/gradle-wrapper.jar"
           chmod +x gradlew
 
+      # 固定签名密钥：每轮 CI 构建使用同一 keystore，
+      # 保证新 APK 能直接覆盖安装旧版本（不再依赖 runner 随机 debug key）
+      - name: Setup fixed signing keystore (stable signature across builds)
+        run: |
+          base64 -d jjj_ci/jjj_keystore.b64 > android/app/jjj-release.keystore
+          cat > android/key.properties << 'KEYEOF'
+          storeFile=jjj-release.keystore
+          storePassword=JjjConnector2026
+          keyAlias=jjj
+          keyPassword=JjjConnector2026
+          KEYEOF
+          echo "=== keystore files ==="; ls -la android/app/jjj-release.keystore android/key.properties
+
       - name: Build APK
         shell: bash
         run: flutter build apk --release 2>&1 | tee build_output.log; exit ${PIPESTATUS[0]}
