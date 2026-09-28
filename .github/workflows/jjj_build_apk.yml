@@ -33,10 +33,23 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        shell: bash
+        run: flutter build apk --release 2>&1 | tee build_output.log; exit ${PIPESTATUS[0]}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: jjj-connector-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Auto report failure log
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tail -n 150 build_output.log > failure_tail.txt || echo "no build log" > failure_tail.txt
+          gh issue create \
+            --repo Lolikongaaa/proxypin \
+            --title "JJJ build failure auto-report $(date +%Y%m%d-%H%M)" \
+            --body-file failure_tail.txt
