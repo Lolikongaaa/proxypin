@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - jjj-connector
+    paths-ignore:
+      - 'jjj_logs/**'
 
 jobs:
   build:
@@ -42,14 +44,17 @@ jobs:
           name: jjj-connector-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Auto report failure log
+      - name: Dump failure log into repo
         if: failure()
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tail -n 150 build_output.log > failure_tail.txt || echo "no build log" > failure_tail.txt
-          gh issue create \
-            --repo Lolikongaaa/proxypin \
-            --title "JJJ build failure auto-report $(date +%Y%m%d-%H%M)" \
-            --body-file failure_tail.txt
+          mkdir -p jjj_logs
+          tail -n 250 build_output.log > jjj_logs/build_failure.log 2>/dev/null || echo "no build log" > jjj_logs/build_failure.log
+          git config user.name "jjj-ci-bot"
+          git config user.email "jjj-ci-bot@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/Lolikongaaa/proxypin.git
+          git add jjj_logs/build_failure.log
+          git commit -m "[JJJ] ci: auto dump failure log"
+          git push origin HEAD:jjj-connector
