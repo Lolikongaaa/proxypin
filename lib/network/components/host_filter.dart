@@ -90,7 +90,15 @@ abstract class HostList {
 }
 
 ///白名单
-class Whites extends HostList {}
+class Whites extends HostList {
+  // [JJJ] 皎皎角连接器默认白名单：仅 MITM 皎皎角 API 域名，其余全部直通不抓包
+  // 用户配置文件中的 whitelist 若存在将覆盖此处默认值
+  Whites() {
+    enabled = true;
+    list.add(RegExp(r"dnabbs-api\.yingxiong\.com"));
+    list.add(RegExp(r"dna-api\.yingxiong\.com"));
+  }
+}
 
 ///黑名单
 class Blacks extends HostList {

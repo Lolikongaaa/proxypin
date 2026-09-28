@@ -35,7 +35,9 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace "com.network.proxy"
     compileSdk flutter.compileSdkVersion
-    ndkVersion flutter.ndkVersion
+    // [JJJ] ProxyPin is pure-Dart (no native code): declaring ndkVersion makes AGP
+    // auto-install a 2GB+ NDK on CI and can exhaust the 14GB runner disk.
+    // ndkVersion flutter.ndkVersion
 //    ndkVersion "26.1.10909125"
 
     compileOptions {
@@ -82,15 +84,16 @@ android {
 
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig signingConfigs.release
+            // [JJJ] CI has no keystore (key.properties absent -> storeFile null):
+            // fall back to debug signing so the APK still builds and installs.
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
 
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

@@ -1,0 +1,117 @@
+name: JJJ Connector Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - jjj-connector
+    paths-ignore:
+      - 'jjj_logs/**'
+      - 'jjj_apk/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space (runner has only ~14GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk 2>/dev/null || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter 3.44.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.9
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version | tee version_info.log
+
+      - name: Install dependencies
+        shell: bash
+        run: flutter pub get 2>&1 | tee pub_get.log; exit ${PIPESTATUS[0]}
+
+      - name: Ensure gradle wrapper (upstream omits gradlew)
+        run: |
+          cd android
+          curl -fsSL -o gradlew "https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradlew"
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradle/wrapper/gradle-wrapper.jar"
+          chmod +x gradlew
+
+      # 固定签名密钥：每轮 CI 构建使用同一 keystore，
+      # 保证新 APK 能直接覆盖安装旧版本（不再依赖 runner 随机 debug key）
+      - name: Setup fixed signing keystore (stable signature across builds)
+        run: |
+          base64 -d jjj_ci/jjj_keystore.b64 > android/app/jjj-release.keystore
+          cat > android/key.properties << 'KEYEOF'
+          storeFile=jjj-release.keystore
+          storePassword=JjjConnector2026
+          keyAlias=jjj
+          keyPassword=JjjConnector2026
+          KEYEOF
+          echo "=== keystore files ==="; ls -la android/app/jjj-release.keystore android/key.properties
+
+      - name: Build APK
+        shell: bash
+        run: flutter build apk --release 2>&1 | tee build_output.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jjj-connector-apk
+          path: build/app/outputs/flutter-apk/*.apk
+
+      # 成功时把 APK 提交回仓库：下载走 git/raw 通道，不受 API 认证/限流限制
+      # 文件名带 run id + commit 短哈希，保证每轮唯一，避免 CDN 缓存吐旧包
+      - name: Commit APK to repo
+        if: success()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p jjj_apk
+          rm -f jjj_apk/*.apk
+          APK_NAME="jjj-connector-${GITHUB_RUN_ID}-${GITHUB_SHA:0:7}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "jjj_apk/${APK_NAME}" 2>/dev/null || cp build/app/outputs/flutter-apk/*.apk "jjj_apk/${APK_NAME}"
+          echo "APK_NAME=${APK_NAME}" | tee apk_name.txt
+          echo "=== apk files ==="; ls -la jjj_apk
+          git config user.name "jjj-bot"
+          git config user.email "jjj-bot@users.noreply.github.com"
+          git add jjj_apk
+          git commit -m "ci: APK artifact run ${GITHUB_RUN_ID} [skip ci]"
+          git push 2>&1 | tee /tmp/apk_push.log
+          echo "PUSH_EXIT=${PIPESTATUS[0]}"
+          cat /tmp/apk_push.log
+
+      - name: Dump logs to repo (diagnostic)
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "=== disk after build ==="; df -h /
+          mkdir -p jjj_logs
+          RUN="${GITHUB_RUN_ID}"
+          cp build_output.log "jjj_logs/build_${RUN}.log" 2>/dev/null
+          cp pub_get.log "jjj_logs/pubget_${RUN}.log" 2>/dev/null
+          cp version_info.log "jjj_logs/version_${RUN}.log" 2>/dev/null
+          sed -i -E 's/gh[sprus]_[A-Za-z0-9_]{16,}/[REDACTED]/g; s/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' jjj_logs/* 2>/dev/null
+          git config user.name "jjj-bot"
+          git config user.email "jjj-bot@users.noreply.github.com"
+          git add jjj_logs
+          git commit -m "chore: build logs run ${RUN}"
+          git push 2>&1 | tee /tmp/push_result.log
+          echo "PUSH_EXIT=${PIPESTATUS[0]}"
