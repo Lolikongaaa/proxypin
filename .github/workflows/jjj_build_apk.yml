@@ -41,6 +41,16 @@ jobs:
         shell: bash
         run: flutter pub get 2>&1 | tee pub_get.log; exit ${PIPESTATUS[0]}
 
+      # 上游 android/.gitignore 忽略了 gradlew/gradle-wrapper.jar（仅本地存在），
+      # CI 环境无这两个文件，flutter build apk 调用 gradlew 时直接失败；
+      # 从 gradle 官方仓库 v8.11.1 tag 拉取配套的 wrapper 三件套补齐
+      - name: Ensure gradle wrapper (upstream omits gradlew)
+        run: |
+          cd android
+          curl -fsSL -o gradlew "https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradlew"
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/gradle/gradle/v8.11.1/gradle/wrapper/gradle-wrapper.jar"
+          chmod +x gradlew
+
       - name: Build APK
         shell: bash
         run: flutter build apk --release 2>&1 | tee build_output.log; exit ${PIPESTATUS[0]}
@@ -50,21 +60,6 @@ jobs:
         with:
           name: jjj-connector-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      # 失败时把完整日志直接 push 回仓库（不依赖 artifact API，便于离线诊断）
-      - name: Dump logs to repo
-        if: failure()
-        shell: bash
-        run: |
-          mkdir -p jjj_logs
-          cp build_output.log "jjj_logs/build_${GITHUB_RUN_ID}.log" 2>/dev/null || true
-          cp pub_get.log "jjj_logs/pubget_${GITHUB_RUN_ID}.log" 2>/dev/null || true
-          cp version_info.log "jjj_logs/version_${GITHUB_RUN_ID}.log" 2>/dev/null || true
-          git config user.name "jjj-bot"
-          git config user.email "jjj-bot@users.noreply.github.com"
-          git add jjj_logs
-          git commit -m "chore: dump build logs (run ${GITHUB_RUN_ID})" || echo "nothing to commit"
-          git push
 
       - name: Upload failure log artifact
         if: failure()
