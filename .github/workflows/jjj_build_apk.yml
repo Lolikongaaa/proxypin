@@ -7,6 +7,7 @@ on:
       - jjj-connector
     paths-ignore:
       - 'jjj_logs/**'
+      - 'jjj_apk/**'
 
 permissions:
   contents: write
@@ -62,8 +63,25 @@ jobs:
           name: jjj-connector-apk
           path: build/app/outputs/flutter-apk/*.apk
 
+      # 成功时把 APK 提交回仓库：下载走 git/raw 通道，不受 API 认证/限流限制
+      - name: Commit APK to repo
+        if: success()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p jjj_apk
+          cp build/app/outputs/flutter-apk/*.apk jjj_apk/ 2>/dev/null
+          echo "=== apk files ==="; ls -la jjj_apk
+          git config user.name "jjj-bot"
+          git config user.email "jjj-bot@users.noreply.github.com"
+          git add jjj_apk
+          git commit -m "ci: APK artifact run ${GITHUB_RUN_ID} [skip ci]"
+          git push 2>&1 | tee /tmp/apk_push.log
+          echo "PUSH_EXIT=${PIPESTATUS[0]}"
+          cat /tmp/apk_push.log
+
       - name: Dump logs to repo (diagnostic)
-        if: always()
+        if: failure()
         shell: bash
         run: |
           set +e
@@ -73,14 +91,10 @@ jobs:
           cp build_output.log "jjj_logs/build_${RUN}.log" 2>/dev/null
           cp pub_get.log "jjj_logs/pubget_${RUN}.log" 2>/dev/null
           cp version_info.log "jjj_logs/version_${RUN}.log" 2>/dev/null
-          echo "=== files ==="; ls -la jjj_logs
           sed -i -E 's/gh[sprus]_[A-Za-z0-9_]{16,}/[REDACTED]/g; s/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' jjj_logs/* 2>/dev/null
           git config user.name "jjj-bot"
           git config user.email "jjj-bot@users.noreply.github.com"
           git add jjj_logs
-          echo "=== staged ==="; git status --short
           git commit -m "chore: build logs run ${RUN}"
-          echo "=== pushing ==="
           git push 2>&1 | tee /tmp/push_result.log
           echo "PUSH_EXIT=${PIPESTATUS[0]}"
-          cat /tmp/push_result.log
