@@ -35,10 +35,11 @@ jobs:
           cache: true
 
       - name: Flutter version
-        run: flutter --version
+        run: flutter --version | tee version_info.log
 
       - name: Install dependencies
-        run: flutter pub get
+        shell: bash
+        run: flutter pub get 2>&1 | tee pub_get.log; exit ${PIPESTATUS[0]}
 
       - name: Build APK
         shell: bash
@@ -49,6 +50,21 @@ jobs:
         with:
           name: jjj-connector-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      # 失败时把完整日志直接 push 回仓库（不依赖 artifact API，便于离线诊断）
+      - name: Dump logs to repo
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p jjj_logs
+          cp build_output.log "jjj_logs/build_${GITHUB_RUN_ID}.log" 2>/dev/null || true
+          cp pub_get.log "jjj_logs/pubget_${GITHUB_RUN_ID}.log" 2>/dev/null || true
+          cp version_info.log "jjj_logs/version_${GITHUB_RUN_ID}.log" 2>/dev/null || true
+          git config user.name "jjj-bot"
+          git config user.email "jjj-bot@users.noreply.github.com"
+          git add jjj_logs
+          git commit -m "chore: dump build logs (run ${GITHUB_RUN_ID})" || echo "nothing to commit"
+          git push
 
       - name: Upload failure log artifact
         if: failure()
