@@ -25,9 +25,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Flutter
+      # 上游 main 与 Flutter 3.44.9 配套（作者亲测组合，见 upstream issue #927）；
+      # 更新版本会要求 Gradle 8.14+/AGP 8.11+/Kotlin 2.2+ 并损失低版本 Android 兼容
+      - name: Setup Flutter 3.44.9
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.44.9
           channel: stable
           cache: true
 
@@ -54,18 +57,3 @@ jobs:
           name: failure-log
           path: build_output.log
           if-no-files-found: warn
-
-      - name: Dump failure log into repo
-        if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p jjj_logs
-          tail -n 250 build_output.log > jjj_logs/build_failure.log 2>/dev/null || echo "no build log" > jjj_logs/build_failure.log
-          git config user.name "jjj-ci-bot"
-          git config user.email "jjj-ci-bot@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/Lolikongaaa/proxypin.git
-          git add jjj_logs/build_failure.log
-          git commit -m "[JJJ] ci: auto dump failure log" || echo "nothing to commit"
-          git push origin HEAD:jjj-connector || echo "push failed"
